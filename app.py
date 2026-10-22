@@ -4,8 +4,6 @@ Finger Tapping PD Risk Score Dashboard -- demo build.
 Upload a finger-tapping video -> extracts the thumb-index distance wave,
 computes the same kinematic features used to train the model, and shows
 a predicted MDS-UPDRS 3.4 severity score with a risk gauge.
-
-Research prototype / demo only -- not a validated clinical diagnostic tool.
 """
 import sys
 import tempfile
@@ -97,28 +95,44 @@ def run_pipeline(video_path: Path):
 
 
 # ── UI ────────────────────────────────────────────────────────────────────
-st.set_page_config(page_title="PD Finger Tapping Risk Score", page_icon="🖐️", layout="centered")
-
-st.title("🖐️ Finger Tapping PD Motor Risk Score")
-st.warning(
-    "⚠️ Research prototype / demo only. Not a validated clinical diagnostic tool. "
-    "Trained on PDMotorDB (academic-use dataset); not tested on arbitrary real-world videos.",
-    icon="⚠️",
-)
+st.set_page_config(page_title="PD Finger Tapping Risk Score", page_icon="🖐️", layout="wide")
 
 st.markdown(
-    "Upload a finger-tapping video (hand cropped, similar to PDMotorDB clips) or pick a "
-    "sample below. The app tracks the thumb-index distance, computes kinematic features, "
-    "and predicts an MDS-UPDRS 3.4 severity score (0-3 seen in training data)."
+    """
+    <style>
+    .block-container { padding-top: 2.5rem; padding-bottom: 3rem; max-width: 1400px; }
+    h1 { font-size: 3rem !important; margin-bottom: 0.3rem !important; }
+    .subtitle { color: #b0b6bd; font-size: 1.25rem; margin-bottom: 2rem; line-height: 1.5; }
+    div[data-testid="stExpander"] { border-radius: 12px; font-size: 1.05rem; }
+    div[data-testid="stFileUploader"] label, div[data-testid="stSelectbox"] label {
+        font-size: 1.1rem !important; font-weight: 600;
+    }
+    .prob-row { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
+    .prob-label { width: 90px; font-size: 1.05rem; font-weight: 600; flex-shrink:0; }
+    .prob-pct { width: 64px; font-size: 1.05rem; color:#b0b6bd; text-align:right; flex-shrink:0; }
+    .prob-track { flex:1; height: 20px; border-radius: 10px; background: rgba(255,255,255,0.08); overflow:hidden; }
+    .prob-fill { height: 100%; border-radius: 10px; }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-col1, col2 = st.columns([2, 1])
-with col1:
-    uploaded = st.file_uploader("Upload a video", type=["avi", "mp4", "mov"])
-with col2:
-    samples = list_sample_videos()
-    sample_labels = ["-- none --"] + [s[0] for s in samples]
-    sample_choice = st.selectbox("...or pick a sample clip", sample_labels)
+st.title("🖐️ Finger Tapping PD Motor Risk Score")
+st.markdown(
+    "<div class='subtitle'>Upload a finger-tapping video or pick a sample clip. "
+    "The app tracks the thumb-index distance, computes kinematic features, and predicts "
+    "an MDS-UPDRS 3.4 severity score using a CNN-BiLSTM-Attention model.</div>",
+    unsafe_allow_html=True,
+)
+
+with st.container(border=True):
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        uploaded = st.file_uploader("Upload a video", type=["avi", "mp4", "mov"])
+    with col2:
+        samples = list_sample_videos()
+        sample_labels = ["-- none --"] + [s[0] for s in samples]
+        sample_choice = st.selectbox("...or pick a sample clip", sample_labels)
 
 video_path = None
 if uploaded is not None:
@@ -129,14 +143,14 @@ elif sample_choice != "-- none --":
     video_path = dict(samples)[sample_choice]
 
 if video_path is not None:
-    st.video(str(video_path))
-
     with st.spinner("Tracking hand landmarks and scoring..."):
         try:
             feats, pred, proba, time_axis, wave, meta = run_pipeline(video_path)
         except Exception as e:
             st.error(f"Could not process this video: {e}")
             st.stop()
+
+    st.divider()
 
     if meta["detection_rate"] < 0.5:
         st.warning(
@@ -145,37 +159,61 @@ if video_path is not None:
             icon="⚠️",
         )
 
-    # Risk score gauge
-    score_col, graph_col = st.columns([1, 2])
-    with score_col:
-        color = RISK_COLORS.get(pred, "#888")
-        st.markdown(
-            f"<div style='text-align:center;padding:20px;border-radius:12px;"
-            f"background:{color}22;border:2px solid {color}'>"
-            f"<div style='font-size:14px;color:#888'>Predicted MDS-UPDRS 3.4 score</div>"
-            f"<div style='font-size:64px;font-weight:bold;color:{color}'>{pred}</div>"
-            f"<div style='font-size:14px'>confidence {proba[pred]:.0%}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-        st.caption(UPDRS_DESCRIPTIONS.get(pred, ""))
-
-        st.markdown("**Class probabilities**")
-        for c in sorted(proba):
-            st.progress(float(proba[c]), text=f"Score {c}: {proba[c]:.1%}")
-
-    with graph_col:
+    top_col1, top_col2 = st.columns([1, 1.4], gap="large")
+    with top_col1:
+        st.video(str(video_path))
+    with top_col2:
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=time_axis, y=wave, mode="lines", name="thumb-index distance"))
+        fig.add_trace(go.Scatter(
+            x=time_axis, y=wave, mode="lines", name="thumb-index distance",
+            line=dict(color="#4f8cff", width=3),
+        ))
         fig.update_layout(
-            title="Thumb-Index Distance Wave",
+            title=dict(text="Thumb-Index Distance Wave", font=dict(size=22)),
             xaxis_title="Time (s)",
             yaxis_title="Normalized distance",
-            height=350,
-            margin=dict(l=20, r=20, t=40, b=20),
+            height=440,
+            margin=dict(l=30, r=30, t=60, b=40),
+            template="plotly_dark",
+            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="rgba(0,0,0,0)",
+            font=dict(size=15),
         )
         st.plotly_chart(fig, use_container_width=True)
 
+    st.write("")
+    score_col, prob_col = st.columns([1, 1.4], gap="large")
+
+    with score_col:
+        color = RISK_COLORS.get(pred, "#888")
+        st.markdown(
+            f"<div style='text-align:center;padding:40px 24px;border-radius:18px;"
+            f"background:{color}1a;border:2px solid {color}80'>"
+            f"<div style='font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:#b0b6bd'>"
+            f"Predicted MDS-UPDRS 3.4 score</div>"
+            f"<div style='font-size:120px;font-weight:800;color:{color};line-height:1.05;margin:10px 0'>{pred}</div>"
+            f"<div style='font-size:20px;color:#b0b6bd;margin-bottom:10px'>confidence {proba[pred]:.0%}</div>"
+            f"<div style='font-size:16px;color:#d8dbe0;max-width:380px;margin:0 auto'>{UPDRS_DESCRIPTIONS.get(pred, '')}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    with prob_col:
+        st.markdown("<div style='font-size:1.2rem;font-weight:700;margin-bottom:14px'>Class probabilities</div>", unsafe_allow_html=True)
+        rows_html = ""
+        for c in sorted(proba):
+            pct = proba[c]
+            bar_color = RISK_COLORS.get(c, "#888")
+            rows_html += (
+                f"<div class='prob-row'>"
+                f"<div class='prob-label'>Score {c}</div>"
+                f"<div class='prob-track'><div class='prob-fill' style='width:{pct*100:.1f}%;background:{bar_color}'></div></div>"
+                f"<div class='prob-pct'>{pct:.1%}</div>"
+                f"</div>"
+            )
+        st.markdown(rows_html, unsafe_allow_html=True)
+
+    st.write("")
     with st.expander("Extracted feature values"):
         feat_table = pd.DataFrame(
             [{"feature": k, "value": round(v, 4)} for k, v in feats.items() if k in TAPPING_FEATURES]
