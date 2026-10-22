@@ -5,6 +5,7 @@ Upload a finger-tapping video -> extracts the thumb-index distance wave,
 computes the same kinematic features used to train the model, and shows
 a predicted MDS-UPDRS 3.4 severity score with a risk gauge.
 """
+import subprocess
 import sys
 import tempfile
 import warnings
@@ -68,6 +69,47 @@ def list_sample_videos():
             if video_path.exists():
                 samples.append((f"{hand} hand - {vid_id} (true label {label})", video_path))
     return samples
+
+
+@st.cache_data(show_spinner=False)
+def to_browser_mp4(video_path_str: str) -> str:
+    """
+    Transcode to a browser-playable format for the <video> preview player only.
+    AVI (or other non-mp4/webm) containers aren't reliably playable in
+    browsers' native HTML5 video element, even though OpenCV reads them
+    fine for the actual scoring pipeline -- this is display-only.
+    Tries H.264/mp4 first, falls back to VP8/webm if libx264 isn't
+    available in this ffmpeg build.
+    """
+    video_path = Path(video_path_str)
+    if video_path.suffix.lower() in (".mp4", ".webm"):
+        return str(video_path)
+
+    tmpdir = Path(tempfile.mkdtemp())
+
+    mp4_path = tmpdir / "preview.mp4"
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y", "-i", str(video_path),
+                "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart", str(mp4_path),
+            ],
+            check=True, capture_output=True, timeout=30,
+        )
+        return str(mp4_path)
+    except Exception:
+        pass
+
+    webm_path = tmpdir / "preview.webm"
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(video_path), "-c:v", "libvpx", "-b:v", "1M", str(webm_path)],
+            check=True, capture_output=True, timeout=30,
+        )
+        return str(webm_path)
+    except Exception:
+        return str(video_path)  # last resort: original (likely won't play, but scoring still works)
 
 
 def run_pipeline(video_path: Path):
@@ -161,7 +203,7 @@ if video_path is not None:
 
     top_col1, top_col2 = st.columns([1, 1.4], gap="large")
     with top_col1:
-        st.video(str(video_path))
+        st.video(to_browser_mp4(str(video_path)))
     with top_col2:
         fig = go.Figure()
         fig.add_trace(go.Scatter(
