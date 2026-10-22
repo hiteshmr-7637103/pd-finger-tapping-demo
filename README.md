@@ -1,16 +1,3 @@
----
-title: Pd Finger Tapping Demo
-emoji: 📊
-colorFrom: purple
-colorTo: indigo
-sdk: gradio
-sdk_version: 6.30.0
-python_version: '3.12'
-app_file: app.py
-pinned: false
-short_description: 'Finger tapping test dashboard for PD patients '
----
-
 # Finger Tapping PD Risk Score — Demo
 
 Implements `docs/finger_tapping_demo_plan.md`.
@@ -19,11 +6,20 @@ This folder **is the git repo that gets hosted** — the project root above it
 is never tracked by git. Everything the app needs lives inside here with no
 references outside this folder (no `../src`, `../models`, `../PDMotorDB(1)`).
 
+**Hosting note**: this was originally built for Hugging Face Spaces, but
+that account's free tier turned out to be restricted to Static Spaces only
+(any Space that runs Python compute — Gradio, Docker, any SDK — needs a PRO
+subscription there). Switched to **Streamlit Community Cloud** instead,
+which deploys straight from a GitHub repo and is free for this kind of app.
+`app.py` is back to Streamlit (it was briefly ported to Gradio for the HF
+attempt; that version is still in git history on the `b687bfa` commit if
+ever needed again).
+
 ## Layout
 ```
 demo/
-├── app.py                  # entry point (Gradio Blocks app; HF Spaces auto-detects this)
-├── requirements.txt        # pinned deps, also at root (required by HF Spaces)
+├── app.py                  # entry point (Streamlit app; Streamlit Cloud auto-detects this)
+├── requirements.txt        # pinned deps, also at root (required by Streamlit Cloud)
 ├── src/
 │   ├── extract_hand_mp_tasks.py   # hand-landmark extraction (see deviation note below)
 │   ├── calculate_kinematics.py    # kinematic feature engineering (copy of project src/)
@@ -76,16 +72,10 @@ demo/
 - **Sample clips**: `samples/` holds 16 clips (8 left-hand, 8 right-hand)
   from PDMotorDB's val split — enough for the in-app dropdown without
   redistributing the full academic-use dataset.
-- **Gradio app**: `app.py` — upload a video or pick a sample clip, shows
+- **Streamlit app**: `app.py` — upload a video or pick a sample clip, shows
   the thumb-index distance wave (Plotly), a colored risk gauge for the
   predicted MDS-UPDRS 3.4 score (0-3), per-class probabilities, and the
   extracted feature table. Disclaimer banner at top.
-  - **Deviation from the plan (hosting SDK)**: the plan assumed Streamlit +
-    Hugging Face Spaces. On this HF account, the Docker SDK (which a
-    Streamlit Space would need, since there's no native Streamlit card in
-    the New Space flow here) is gated behind a paid plan. Gradio is the free,
-    natively auto-detected SDK, so the UI was rewritten in Gradio `Blocks` —
-    same backend (`run_pipeline`), same features, no Dockerfile needed.
 
 ## Retraining the DL model
 ```
@@ -100,22 +90,20 @@ inference time) and overwrites `models/tapping_dl_model.keras` /
 ## Running locally
 ```
 cd demo
-.venv/bin/python3 app.py
+.venv/bin/streamlit run app.py
 ```
-(`.venv` here is a fresh Python 3.13 venv with gradio/mediapipe/opencv/
+(`.venv` here is a fresh Python 3.13 venv with streamlit/mediapipe/opencv/
 tensorflow-cpu/plotly installed. It's gitignored — on a fresh clone, recreate
 it with `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.)
 
-## Hosting on Hugging Face Spaces
-1. Create a new Space: SDK **Gradio**, hardware **CPU Basic (free)**.
-2. From inside `demo/` (already a git repo, `main` branch, initial commit
-   done): `git remote add origin <your HF Space git URL>`.
-3. `git push -u origin main` (use an HF **write** access token as the
-   password when prompted).
-4. Watch the Space's build logs; a few minutes for TensorFlow/mediapipe to
-   install.
-5. Test one upload (or the sample-clip dropdown) on the hosted Space before
-   the panel sees it — library versions can differ from this local `.venv`.
+## Hosting on Streamlit Community Cloud
+1. Push this `demo/` repo to a **GitHub** repo (not Hugging Face).
+2. Go to share.streamlit.io, sign in with GitHub, **New app**.
+3. Point it at the GitHub repo/branch, main file path: `app.py`.
+4. Deploy — it reads `requirements.txt` automatically, no Dockerfile needed.
+5. Test one upload (or the sample-clip dropdown) on the hosted app before
+   the panel sees it — library versions can differ from this local `.venv`,
+   and the free tier's 1 GB RAM is tighter than what we tested with locally.
 
 ## Known limits (explicitly out of scope per the plan)
 - No live webcam capture.
