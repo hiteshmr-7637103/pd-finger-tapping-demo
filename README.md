@@ -9,7 +9,7 @@ references outside this folder (no `../src`, `../models`, `../PDMotorDB(1)`).
 ## Layout
 ```
 demo/
-├── app.py                  # entry point (Streamlit/HF Spaces expect this at repo root)
+├── app.py                  # entry point (Gradio Blocks app; HF Spaces auto-detects this)
 ├── requirements.txt        # pinned deps, also at root (required by HF Spaces)
 ├── src/
 │   ├── extract_hand_mp_tasks.py   # hand-landmark extraction (see deviation note below)
@@ -63,10 +63,16 @@ demo/
 - **Sample clips**: `samples/` holds 16 clips (8 left-hand, 8 right-hand)
   from PDMotorDB's val split — enough for the in-app dropdown without
   redistributing the full academic-use dataset.
-- **Streamlit app**: `app.py` — upload a video or pick a sample clip, shows
+- **Gradio app**: `app.py` — upload a video or pick a sample clip, shows
   the thumb-index distance wave (Plotly), a colored risk gauge for the
   predicted MDS-UPDRS 3.4 score (0-3), per-class probabilities, and the
   extracted feature table. Disclaimer banner at top.
+  - **Deviation from the plan (hosting SDK)**: the plan assumed Streamlit +
+    Hugging Face Spaces. On this HF account, the Docker SDK (which a
+    Streamlit Space would need, since there's no native Streamlit card in
+    the New Space flow here) is gated behind a paid plan. Gradio is the free,
+    natively auto-detected SDK, so the UI was rewritten in Gradio `Blocks` —
+    same backend (`run_pipeline`), same features, no Dockerfile needed.
 
 ## Retraining the DL model
 ```
@@ -81,22 +87,22 @@ inference time) and overwrites `models/tapping_dl_model.keras` /
 ## Running locally
 ```
 cd demo
-.venv/bin/streamlit run app.py
+.venv/bin/python3 app.py
 ```
-(`.venv` here is a fresh Python 3.13 venv with streamlit/mediapipe/opencv/
+(`.venv` here is a fresh Python 3.13 venv with gradio/mediapipe/opencv/
 tensorflow-cpu/plotly installed. It's gitignored — on a fresh clone, recreate
 it with `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`.)
 
-## Not done (Step 4 — hosting)
-Hugging Face Spaces deployment was left out: it requires your HF account
-credentials/push access, which isn't something to do without you present.
-Since this folder is already the repo root, deploying is just:
-1. From inside `demo/`: `git init`, `git remote add origin <your HF Space
-   git URL>`.
-2. `git add` everything (`.venv/` and `__pycache__/` are already gitignored)
-   and commit/push.
-3. Test one upload on the hosted Space before the panel sees it (library
-   versions can differ on HF's build).
+## Hosting on Hugging Face Spaces
+1. Create a new Space: SDK **Gradio**, hardware **CPU Basic (free)**.
+2. From inside `demo/` (already a git repo, `main` branch, initial commit
+   done): `git remote add origin <your HF Space git URL>`.
+3. `git push -u origin main` (use an HF **write** access token as the
+   password when prompted).
+4. Watch the Space's build logs; a few minutes for TensorFlow/mediapipe to
+   install.
+5. Test one upload (or the sample-clip dropdown) on the hosted Space before
+   the panel sees it — library versions can differ from this local `.venv`.
 
 ## Known limits (explicitly out of scope per the plan)
 - No live webcam capture.
