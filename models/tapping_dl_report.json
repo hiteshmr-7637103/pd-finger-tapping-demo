@@ -1,0 +1,10 @@
+{
+  "task": "tapping",
+  "architecture": "CNN-BiLSTM-Attention",
+  "n_train": 484,
+  "n_val": 127,
+  "val_bal_acc": 0.8568561872909699,
+  "val_f1_macro": 0.8595054400325386,
+  "classification_report": "              precision    recall  f1-score   support\n\n           0       0.96      0.92      0.94        26\n           1       0.86      0.80      0.83        46\n           2       0.83      0.90      0.87        50\n           3       0.80      0.80      0.80         5\n\n    accuracy                           0.87       127\n   macro avg       0.86      0.86      0.86       127\nweighted avg       0.87      0.87      0.87       127\n",
+  "epochs_run": 48
+}
