@@ -34,6 +34,8 @@ from extract_hand_mp_tasks import extract_hand_landmarks  # noqa: E402
 import pickle
 from tensorflow import keras
 
+UPDRS_LABELS = {0: "Normal", 1: "Slight", 2: "Mild", 3: "Moderate", 4: "Severe"}
+
 UPDRS_DESCRIPTIONS = {
     0: "Normal: no impairment.",
     1: "Slight: 1-2 interruptions, slight slowing, or amplitude decrement near the end.",
@@ -43,6 +45,14 @@ UPDRS_DESCRIPTIONS = {
 }
 
 RISK_COLORS = {0: "#2ecc71", 1: "#f1c40f", 2: "#e67e22", 3: "#e74c3c", 4: "#8e0000"}
+
+# The trained model only has 4 output classes (0-3): no patient in the
+# training data scored a 4 ("Severe"), so the model has no class-4 unit at
+# all and can never predict it. We still show it in the UI, pinned at 0%,
+# so the full clinical 0-4 scale is visible and the missing class isn't
+# silently hidden (which would look like "severe is impossible" rather
+# than "the model was never trained on severe cases").
+MODEL_MAX_CLASS = 3
 
 
 @st.cache_resource
@@ -150,7 +160,7 @@ st.markdown(
         font-size: 1.1rem !important; font-weight: 600;
     }
     .prob-row { display:flex; align-items:center; gap:14px; margin-bottom:10px; }
-    .prob-label { width: 90px; font-size: 1.05rem; font-weight: 600; flex-shrink:0; }
+    .prob-label { width: 230px; font-size: 1.0rem; font-weight: 600; flex-shrink:0; }
     .prob-pct { width: 64px; font-size: 1.05rem; color:#b0b6bd; text-align:right; flex-shrink:0; }
     .prob-track { flex:1; height: 20px; border-radius: 10px; background: rgba(255,255,255,0.08); overflow:hidden; }
     .prob-fill { height: 100%; border-radius: 10px; }
@@ -228,12 +238,14 @@ if video_path is not None:
 
     with score_col:
         color = RISK_COLORS.get(pred, "#888")
+        label = UPDRS_LABELS.get(pred, "")
         st.markdown(
             f"<div style='text-align:center;padding:40px 24px;border-radius:18px;"
             f"background:{color}1a;border:2px solid {color}80'>"
             f"<div style='font-size:16px;letter-spacing:.05em;text-transform:uppercase;color:#b0b6bd'>"
             f"Predicted MDS-UPDRS 3.4 score</div>"
             f"<div style='font-size:120px;font-weight:800;color:{color};line-height:1.05;margin:10px 0'>{pred}</div>"
+            f"<div style='font-size:28px;font-weight:700;color:{color};margin-bottom:6px'>{label}</div>"
             f"<div style='font-size:20px;color:#b0b6bd;margin-bottom:10px'>confidence {proba[pred]:.0%}</div>"
             f"<div style='font-size:16px;color:#d8dbe0;max-width:380px;margin:0 auto'>{UPDRS_DESCRIPTIONS.get(pred, '')}</div>"
             f"</div>",
@@ -242,13 +254,19 @@ if video_path is not None:
 
     with prob_col:
         st.markdown("<div style='font-size:1.2rem;font-weight:700;margin-bottom:14px'>Class probabilities</div>", unsafe_allow_html=True)
+        # Show all 5 clinical classes (0-4), even though the model only has
+        # 4 output units (no training patient scored a 4) -- class 4 is
+        # pinned at 0% rather than omitted, so the full scale stays visible.
+        full_proba = {c: proba.get(c, 0.0) for c in range(5)}
         rows_html = ""
-        for c in sorted(proba):
-            pct = proba[c]
+        for c in sorted(full_proba):
+            pct = full_proba[c]
             bar_color = RISK_COLORS.get(c, "#888")
+            label = UPDRS_LABELS.get(c, "")
+            note = " (not in training data)" if c > MODEL_MAX_CLASS else ""
             rows_html += (
                 f"<div class='prob-row'>"
-                f"<div class='prob-label'>Score {c}</div>"
+                f"<div class='prob-label'>{c} &middot; {label}{note}</div>"
                 f"<div class='prob-track'><div class='prob-fill' style='width:{pct*100:.1f}%;background:{bar_color}'></div></div>"
                 f"<div class='prob-pct'>{pct:.1%}</div>"
                 f"</div>"
