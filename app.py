@@ -46,14 +46,6 @@ UPDRS_DESCRIPTIONS = {
 
 RISK_COLORS = {0: "#2ecc71", 1: "#f1c40f", 2: "#e67e22", 3: "#e74c3c", 4: "#8e0000"}
 
-# The trained model only has 4 output classes (0-3): no patient in the
-# training data scored a 4 ("Severe"), so the model has no class-4 unit at
-# all and can never predict it. We still show it in the UI, pinned at 0%,
-# so the full clinical 0-4 scale is visible and the missing class isn't
-# silently hidden (which would look like "severe is impossible" rather
-# than "the model was never trained on severe cases").
-MODEL_MAX_CLASS = 3
-
 
 @st.cache_resource
 def load_dl_model():
@@ -263,10 +255,9 @@ if video_path is not None:
             pct = full_proba[c]
             bar_color = RISK_COLORS.get(c, "#888")
             label = UPDRS_LABELS.get(c, "")
-            note = " (not in training data)" if c > MODEL_MAX_CLASS else ""
             rows_html += (
                 f"<div class='prob-row'>"
-                f"<div class='prob-label'>{c} &middot; {label}{note}</div>"
+                f"<div class='prob-label'>{c} &middot; {label}</div>"
                 f"<div class='prob-track'><div class='prob-fill' style='width:{pct*100:.1f}%;background:{bar_color}'></div></div>"
                 f"<div class='prob-pct'>{pct:.1%}</div>"
                 f"</div>"
